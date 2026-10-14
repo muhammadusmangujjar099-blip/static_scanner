@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Static Code Scanner</title>
+  <style>
+    :root {
+      --bg: #0f1419; --card: #1a2332; --border: #2d3a4f; --accent: #3b82f6;
+      --accent-hover: #2563eb; --success: #22c55e; --warning: #f59e0b;
+      --danger: #ef4444; --text: #e2e8f0; --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; }
+    .container { max-width: 1000px; margin: 0 auto; padding: 24px 16px; }
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+    header h1 { font-size: 1.5rem; font-weight: 700; }
+    header h1 span { color: var(--accent); }
+    .badge { font-size: 0.75rem; background: #1e3a5f; color: #93c5fd; padding: 4px 10px; border-radius: 999px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+    .card h2 { font-size: 1.1rem; margin-bottom: 16px; color: #f1f5f9; }
+    label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; }
+    input[type="text"], input[type="email"], input[type="password"] {
+      width: 100%; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-size: 0.95rem; margin-bottom: 14px;
+    }
+    input:focus { outline: none; border-color: var(--accent); }
+    button { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: var(--accent);
+      color: white; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
+    button:hover { background: var(--accent-hover); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .hidden { display: none !important; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .row > * { flex: 1; min-width: 140px; }
+    .dropzone { border: 2px dashed var(--border); border-radius: 12px; padding: 40px 20px; text-align: center; cursor: pointer; }
+    .dropzone:hover, .dropzone.dragover { border-color: var(--accent); background: rgba(59,130,246,0.08); }
+    .dropzone p { color: var(--muted); margin-top: 8px; font-size: 0.9rem; }
+    .dropzone .icon { font-size: 2.5rem; }
+    .status-bar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 0.9rem; }
+    .status-bar.pending { background: #1e3a5f; color: #93c5fd; }
+    .status-bar.running { background: #422006; color: #fcd34d; }
+    .status-bar.completed { background: #14532d; color: #86efac; }
+    .status-bar.failed { background: #450a0a; color: #fca5a5; }
+    .score { font-size: 2.5rem; font-weight: 800; text-align: center; }
+    .score.good { color: var(--success); } .score.medium { color: var(--warning); } .score.bad { color: var(--danger); }
+    .risk-badge { display: inline-block; padding: 4px 12px; border-radius: 999px; font-weight: 700; font-size: 0.85rem; }
+    .risk-badge.Low { background: #14532d; color: #86efac; }
+    .risk-badge.Medium { background: #422006; color: #fcd34d; }
+    .risk-badge.High { background: #450a0a; color: #fca5a5; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    @media (max-width: 600px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+    .stat { background: var(--bg); border-radius: 8px; padding: 14px; text-align: center; }
+    .stat .num { font-size: 1.4rem; font-weight: 700; }
+    .stat .lbl { font-size: 0.75rem; color: var(--muted); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+    .sev { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+    .sev.high { background: #450a0a; color: #fca5a5; }
+    .sev.medium { background: #422006; color: #fcd34d; }
+    .sev.low { background: #1e3a5f; color: #93c5fd; }
+    .tag { display: inline-block; background: #1e3a5f; color: #93c5fd; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; margin: 2px; }
+    .error-msg { background: #450a0a; color: #fca5a5; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 0.9rem; }
+    .success-msg { background: #14532d; color: #86efac; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 0.9rem; }
+    .user-info { font-size: 0.85rem; color: var(--muted); }
+    .user-info strong { color: var(--text); }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .section-title { font-size: 0.95rem; font-weight: 600; margin: 20px 0 10px; color: #cbd5e1; }
+    code { background: var(--bg); padding: 1px 5px; border-radius: 3px; font-size: 0.8rem; word-break: break-all; }
+    .logout-btn { font-size: 0.8rem; padding: 6px 12px; }
+    .tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+    .tab { padding: 10px 24px; cursor: pointer; font-weight: 600; font-size: 0.95rem; color: var(--muted);
+      border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; border-radius: 0; }
+    .tab:hover { color: var(--text); background: none; }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .auth-switch { margin-top: 16px; font-size: 0.85rem; color: var(--muted); text-align: center; }
+    .auth-switch a { color: var(--accent); cursor: pointer; text-decoration: none; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🔍 <span>Static</span> Code Scanner</h1>
+      <span class="badge">No AI · Pure Rules · Full Suite</span>
+    </header>
+
+    <div id="auth-section" class="card">
+      <div class="tabs">
+        <button class="tab active" id="tab-login" onclick="showAuthTab('login')">Login</button>
+        <button class="tab" id="tab-signup" onclick="showAuthTab('signup')">Sign Up</button>
+      </div>
+      <div id="login-form">
+        <div id="login-error" class="error-msg hidden"></div>
+        <label>Email</label>
+        <input type="email" id="login-email" value="admin@scanner.local" />
+        <label>Password</label>
+        <input type="password" id="login-password" value="admin123" />
+        <button onclick="doLogin()" id="login-btn">Login</button>
+        <p class="auth-switch">Don't have an account? <a onclick="showAuthTab('signup')">Sign Up</a></p>
+        <p style="margin-top:10px;font-size:0.75rem;color:var(--muted)">Default: admin@scanner.local / admin123</p>
+      </div>
+      <div id="signup-form" class="hidden">
+        <div id="signup-error" class="error-msg hidden"></div>
+        <div id="signup-success" class="success-msg hidden"></div>
+        <label>Full Name</label>
+        <input type="text" id="signup-name" placeholder="Your Name" />
+        <label>Email</label>
+        <input type="email" id="signup-email" placeholder="you@example.com" />
+        <label>Password</label>
+        <input type="password" id="signup-password" placeholder="Min 6 characters" />
+        <label>Confirm Password</label>
+        <input type="password" id="signup-password2" placeholder="Repeat password" />
+        <button onclick="doSignup()" id="signup-btn">Create Account</button>
+        <p class="auth-switch">Already have an account? <a onclick="showAuthTab('login')">Login</a></p>
+      </div>
+    </div>
+
+    <div id="app-section" class="hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div class="user-info">Logged in as <strong id="user-name">—</strong> (<span id="user-role">—</span>)</div>
+        <button class="secondary logout-btn" onclick="doLogout()">Logout</button>
+      </div>
+      <div class="card" id="setup-card">
+        <h2>1. Setup Project</h2>
+        <div class="row">
+          <div><label>Organization Name</label><input type="text" id="org-name" value="Demo Org" /></div>
+          <div><label>Project Name</label><input type="text" id="proj-name" value="Demo Project" /></div>
+        </div>
+        <button onclick="setupProject()" id="setup-btn">Create & Continue</button>
+        <p id="setup-status" style="margin-top:10px;font-size:0.85rem;color:var(--muted)"></p>
+      </div>
+      <div class="card hidden" id="upload-card">
+        <h2>2. Upload Codebase (ZIP)</h2>
+        <p style="font-size:0.85rem;color:var(--muted);margin-bottom:14px">Project: <strong id="current-project">—</strong></p>
+        <div class="dropzone" id="dropzone" onclick="document.getElementById('zip-input').click()">
+          <div class="icon">📦</div>
+          <p><strong>Click or drag</strong> a .zip file here</p>
+          <p style="font-size:0.8rem">Scans: Language · System · Secrets · Deps · Sensitive files · IPs · Quality · Licenses · Audit</p>
+        </div>
+        <input type="file" id="zip-input" accept=".zip" class="hidden" onchange="onFileSelected(event)" />
+        <div id="file-info" class="hidden" style="margin-top:12px;font-size:0.9rem">
+          Selected: <strong id="file-name"></strong>
+          <button style="margin-left:12px" onclick="startScan()" id="scan-btn">Start Scan</button>
+        </div>
+        <div id="upload-error" class="error-msg hidden" style="margin-top:12px"></div>
+      </div>
+      <div class="card hidden" id="results-card">
+        <h2>3. Scan Results</h2>
+        <div id="scan-status" class="status-bar pending">Status: pending…</div>
+        <div id="results-body" class="hidden"></div>
+        <button class="secondary" style="margin-top:16px" onclick="resetScan()">Scan Another ZIP</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    const API = window.location.origin;
+    let token = localStorage.getItem('token') || '';
+    let projectId = null;
+    let selectedFile = null;
+    let pollTimer = null;
+
+    function showAuthTab(tab) {
+      document.getElementById('login-form').classList.toggle('hidden', tab !== 'login');
+      document.getElementById('signup-form').classList.toggle('hidden', tab !== 'signup');
+      document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+      document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
+      document.getElementById('login-error').classList.add('hidden');
+      document.getElementById('signup-error').classList.add('hidden');
+      document.getElementById('signup-success').classList.add('hidden');
+    }
+
+    async function doLogin() {
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+      const errEl = document.getElementById('login-error');
+      errEl.classList.add('hidden');
+      document.getElementById('login-btn').disabled = true;
+      try {
+        const res = await fetch(API + '/api/auth/login-json', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Login failed');
+        token = data.access_token;
+        localStorage.setItem('token', token);
+        await showApp();
+      } catch (e) {
+        errEl.textContent = e.message; errEl.classList.remove('hidden');
+      } finally { document.getElementById('login-btn').disabled = false; }
+    }
+
+    async function doSignup() {
+      const fullName = document.getElementById('signup-name').value.trim();
+      const email = document.getElementById('signup-email').value.trim();
+      const password = document.getElementById('signup-password').value;
+      const password2 = document.getElementById('signup-password2').value;
+      const errEl = document.getElementById('signup-error');
+      const okEl = document.getElementById('signup-success');
+      errEl.classList.add('hidden'); okEl.classList.add('hidden');
+      if (!email || !password) { errEl.textContent = 'Email and password required'; errEl.classList.remove('hidden'); return; }
+      if (password.length < 6) { errEl.textContent = 'Password min 6 chars'; errEl.classList.remove('hidden'); return; }
+      if (password !== password2) { errEl.textContent = 'Passwords do not match'; errEl.classList.remove('hidden'); return; }
+      document.getElementById('signup-btn').disabled = true;
+      try {
+        const res = await fetch(API + '/api/auth/register', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, full_name: fullName || null, role: 'member' })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          const msg = typeof data.detail === 'string' ? data.detail :
+            (Array.isArray(data.detail) ? data.detail.map(d => d.msg).join(', ') : 'Signup failed');
+          throw new Error(msg);
+        }
+        okEl.textContent = 'Account created! Please login.';
+        okEl.classList.remove('hidden');
+        document.getElementById('login-email').value = email;
+        document.getElementById('login-password').value = '';
+        setTimeout(() => showAuthTab('login'), 1200);
+      } catch (e) {
+        errEl.textContent = e.message; errEl.classList.remove('hidden');
+      } finally { document.getElementById('signup-btn').disabled = false; }
+    }
+
+    function doLogout() {
+      token = ''; localStorage.removeItem('token'); projectId = null;
+      document.getElementById('app-section').classList.add('hidden');
+      document.getElementById('auth-section').classList.remove('hidden');
+      showAuthTab('login');
+    }
+
+    async function showApp() {
+      try {
+        const res = await fetch(API + '/api/auth/me', { headers: { Authorization: 'Bearer ' + token } });
+        if (!res.ok) throw new Error('Session expired');
+        const user = await res.json();
+        document.getElementById('user-name').textContent = user.full_name || user.email;
+        document.getElementById('user-role').textContent = user.role;
+        document.getElementById('auth-section').classList.add('hidden');
+        document.getElementById('app-section').classList.remove('hidden');
+        document.getElementById('setup-card').classList.remove('hidden');
+        document.getElementById('upload-card').classList.add('hidden');
+        document.getElementById('results-card').classList.add('hidden');
+      } catch (e) { doLogout(); }
+    }
+
+    async function setupProject() {
+      const orgName = document.getElementById('org-name').value.trim();
+      const projName = document.getElementById('proj-name').value.trim();
+      const status = document.getElementById('setup-status');
+      const btn = document.getElementById('setup-btn');
+      if (!orgName || !projName) { status.textContent = 'Fill both fields'; return; }
+      btn.disabled = true; status.textContent = 'Creating…'; status.style.color = 'var(--muted)';
+      try {
+        let orgId;
+        const orgsRes = await fetch(API + '/api/organizations/', { headers: { Authorization: 'Bearer ' + token } });
+        const orgs = await orgsRes.json();
+        const existing = (Array.isArray(orgs) ? orgs : []).find(o => o.name === orgName);
+        if (existing) orgId = existing.id;
+        else {
+          const orgRes = await fetch(API + '/api/organizations/', {
+            method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: orgName, description: 'Created from UI' })
+          });
+          const org = await orgRes.json();
+          if (!orgRes.ok) throw new Error(typeof org.detail === 'string' ? org.detail : 'Org failed');
+          orgId = org.id;
+        }
+        const projRes = await fetch(API + '/api/projects/', {
+          method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: projName, description: 'Created from UI', organization_id: orgId })
+        });
+        const proj = await projRes.json();
+        if (!projRes.ok) throw new Error(typeof proj.detail === 'string' ? proj.detail : 'Project failed');
+        projectId = proj.id;
+        document.getElementById('current-project').textContent = proj.name + ' (#' + proj.id + ')';
+        document.getElementById('setup-card').classList.add('hidden');
+        document.getElementById('upload-card').classList.remove('hidden');
+        status.textContent = '';
+      } catch (e) {
+        status.textContent = 'Error: ' + e.message; status.style.color = 'var(--danger)';
+      } finally { btn.disabled = false; }
+    }
+
+    function onFileSelected(e) {
+      const f = e.target.files[0]; if (!f) return;
+      selectedFile = f;
+      document.getElementById('file-name').textContent = f.name + ' (' + (f.size / 1024).toFixed(1) + ' KB)';
+      document.getElementById('file-info').classList.remove('hidden');
+    }
+    const dz = document.getElementById('dropzone');
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+    dz.addEventListener('drop', e => {
+      e.preventDefault(); dz.classList.remove('dragover');
+      const f = e.dataTransfer.files[0];
+      if (f && f.name.endsWith('.zip')) {
+        selectedFile = f;
+        document.getElementById('file-name').textContent = f.name + ' (' + (f.size / 1024).toFixed(1) + ' KB)';
+        document.getElementById('file-info').classList.remove('hidden');
+      }
+    });
+
+    async function startScan() {
+      if (!selectedFile || !projectId) return;
+      const btn = document.getElementById('scan-btn');
+      const errEl = document.getElementById('upload-error');
+      errEl.classList.add('hidden'); btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Uploading…';
+      try {
+        const form = new FormData(); form.append('file', selectedFile);
+        const res = await fetch(API + '/api/scans/project/' + projectId + '/upload', {
+          method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form
+        });
+        const scan = await res.json();
+        if (!res.ok) throw new Error(typeof scan.detail === 'string' ? scan.detail : 'Upload failed');
+        document.getElementById('upload-card').classList.add('hidden');
+        document.getElementById('results-card').classList.remove('hidden');
+        document.getElementById('results-body').classList.add('hidden');
+        setStatus('running', 'Full suite scan running…');
+        pollScan(scan.id);
+      } catch (e) {
+        errEl.textContent = e.message; errEl.classList.remove('hidden');
+        btn.disabled = false; btn.textContent = 'Start Scan';
+      }
+    }
+
+    function setStatus(status, text) {
+      const el = document.getElementById('scan-status');
+      el.className = 'status-bar ' + status;
+      el.textContent = text || ('Status: ' + status);
+    }
+
+    async function pollScan(scanId) {
+      try {
+        const res = await fetch(API + '/api/scans/' + scanId, { headers: { Authorization: 'Bearer ' + token } });
+        const data = await res.json();
+        if (data.status === 'completed') { setStatus('completed', '✅ Scan completed'); renderResults(data); }
+        else if (data.status === 'failed') { setStatus('failed', '❌ ' + (data.error_message || 'Failed')); }
+        else { setStatus(data.status, 'Status: ' + data.status + '…'); pollTimer = setTimeout(() => pollScan(scanId), 1500); }
+      } catch (e) { setStatus('failed', 'Error: ' + e.message); }
+    }
+
+    function tableOrEmpty(rowsHtml, emptyMsg) {
+      if (!rowsHtml) return '<p style="color:var(--muted);font-size:0.9rem">' + emptyMsg + '</p>';
+      return rowsHtml;
+    }
+
+    function renderResults(data) {
+      const r = data.results;
+      if (!r) {
+        document.getElementById('results-body').innerHTML = '<p>No results.</p>';
+        document.getElementById('results-body').classList.remove('hidden');
+        return;
+      }
+      const sys = r.system_info || {};
+      const score = r.audit_score ?? 0;
+      const scoreClass = score >= 80 ? 'good' : score >= 50 ? 'medium' : 'bad';
+      const risk = r.risk_level || sys.risk_level || (score >= 80 ? 'Low' : score >= 50 ? 'Medium' : 'High');
+
+      let langsHtml = '';
+      if (r.languages) {
+        for (const [lang, count] of Object.entries(r.languages))
+          langsHtml += '<span class="tag">' + lang + ': ' + count + ' files</span>';
+      }
+
+      const deps = sys.dependency_vulnerabilities || r.dependency_vulnerabilities || [];
+      let depsRows = '';
+      for (const d of deps) {
+        depsRows += '<tr><td><span class="sev ' + d.severity + '">' + d.severity + '</span></td><td><code>' + esc(d.package) + '</code></td><td>' + esc(d.version) + ' → fix ≥ ' + esc(d.fix_version) + '</td><td><code>' + esc(d.file) + '</code></td><td>' + esc(d.cve) + '</td><td>' + esc(d.note) + '</td></tr>';
+      }
+      const depsHtml = depsRows ? '<table><thead><tr><th>Sev</th><th>Package</th><th>Version</th><th>File</th><th>CVE</th><th>Note</th></tr></thead><tbody>' + depsRows + '</tbody></table>' : '';
+
+      const sensitive = sys.sensitive_files || r.sensitive_files || [];
+      let sensRows = '';
+      for (const s of sensitive) {
+        sensRows += '<tr><td><span class="sev ' + (s.severity||'high') + '">' + (s.severity||'high') + '</span></td><td>' + esc(s.type) + '</td><td><code>' + esc(s.file) + '</code></td><td>' + esc(s.note||'') + '</td></tr>';
+      }
+      const sensHtml = sensRows ? '<table><thead><tr><th>Sev</th><th>Type</th><th>File</th><th>Note</th></tr></thead><tbody>' + sensRows + '</tbody></table>' : '';
+
+      const ips = sys.hardcoded_ips || r.hardcoded_ips || [];
+      let ipRows = '';
+      for (const i of ips) {
+        ipRows += '<tr><td><span class="sev ' + (i.severity||'medium') + '">' + (i.severity||'medium') + '</span></td><td><code>' + esc(i.value) + '</code></td><td><code>' + esc(i.file) + '</code></td><td>' + (i.line||'') + '</td><td>' + esc(i.note||'') + '</td></tr>';
+      }
+      const ipsHtml = ipRows ? '<table><thead><tr><th>Sev</th><th>Value</th><th>File</th><th>Line</th><th>Note</th></tr></thead><tbody>' + ipRows + '</tbody></table>' : '';
+
+      let secretsHtml = '';
+      if (r.secrets_found && r.secrets_found.length) {
+        secretsHtml = '<table><thead><tr><th>Type</th><th>File</th><th>Line</th><th>Snippet</th></tr></thead><tbody>';
+        for (const s of r.secrets_found)
+          secretsHtml += '<tr><td><span class="sev high">' + esc(s.type) + '</span></td><td><code>' + esc(s.file) + '</code></td><td>' + s.line + '</td><td><code>' + esc(s.snippet) + '</code></td></tr>';
+        secretsHtml += '</tbody></table>';
+      }
+
+      let auditHtml = '';
+      if (r.static_audit && r.static_audit.length) {
+        auditHtml = '<table><thead><tr><th>Sev</th><th>ID</th><th>File</th><th>Line</th><th>Message</th></tr></thead><tbody>';
+        for (const a of r.static_audit)
+          auditHtml += '<tr><td><span class="sev ' + a.severity + '">' + a.severity + '</span></td><td>' + esc(a.id) + '</td><td><code>' + esc(a.file) + '</code></td><td>' + a.line + '</td><td>' + esc(a.message) + '</td></tr>';
+        auditHtml += '</tbody></table>';
+      }
+
+      const quality = sys.quality_metrics || r.quality_metrics || {};
+      const licenses = sys.licenses || r.licenses || [];
+      const frameworks = (sys.framework_hints || []).map(function(f) { return '<span class="tag">' + esc(f) + '</span>'; }).join(' ') || '—';
+      const licTags = licenses.length ? licenses.map(function(l) { return '<span class="tag">' + esc(l) + '</span>'; }).join(' ') : '—';
+
+      document.getElementById('results-body').innerHTML =
+        '<div class="grid-2" style="margin-bottom:20px">' +
+          '<div class="stat"><div class="score ' + scoreClass + '">' + score + '</div><div class="lbl">Security Score</div>' +
+          '<div style="margin-top:8px"><span class="risk-badge ' + risk + '">Risk: ' + risk + '</span></div></div>' +
+          '<div class="grid-3">' +
+            '<div class="stat"><div class="num">' + (r.total_files||0) + '</div><div class="lbl">Files</div></div>' +
+            '<div class="stat"><div class="num">' + (r.total_lines||0) + '</div><div class="lbl">Lines</div></div>' +
+            '<div class="stat"><div class="num">' + (r.secrets_count||0) + '</div><div class="lbl">Secrets</div></div>' +
+            '<div class="stat"><div class="num">' + ((r.static_audit||[]).length) + '</div><div class="lbl">Audit Issues</div></div>' +
+            '<div class="stat"><div class="num">' + deps.length + '</div><div class="lbl">Dep Vulns</div></div>' +
+            '<div class="stat"><div class="num">' + sensitive.length + '</div><div class="lbl">Sensitive Files</div></div>' +
+          '</div></div>' +
+        '<div class="section-title">🌐 Languages</div>' +
+        '<p><strong>Primary:</strong> ' + esc(r.primary_language||'Unknown') + '</p>' +
+        '<div style="margin-top:8px">' + langsHtml + '</div>' +
+        '<div class="section-title">🗂️ System / Structure</div>' +
+        '<div class="grid-2" style="font-size:0.9rem">' +
+          '<div>Frameworks: ' + frameworks + '</div>' +
+          '<div>Tests: ' + (sys.has_tests?'✅':'❌') + ' · Docker: ' + (sys.has_docker?'✅':'❌') + ' · CI: ' + (sys.has_ci?'✅':'❌') + ' · Docs: ' + (sys.has_docs?'✅':'❌') + '</div>' +
+          '<div>Deps files: ' + ((sys.dependency_files||[]).length) + '</div>' +
+          '<div>Licenses: ' + licTags + '</div>' +
+        '</div>' +
+        '<div class="section-title">📏 Code Quality</div>' +
+        '<div class="grid-3" style="font-size:0.9rem">' +
+          '<div class="stat"><div class="num">' + (quality.large_files||0) + '</div><div class="lbl">Large files (&gt;500 lines)</div></div>' +
+          '<div class="stat"><div class="num">' + (quality.avg_file_lines||0) + '</div><div class="lbl">Avg lines / file</div></div>' +
+          '<div class="stat"><div class="num">' + (quality.deep_nesting_files||0) + '</div><div class="lbl">Deep nesting files</div></div>' +
+        '</div>' +
+        '<div class="section-title">📦 Dependency Vulnerabilities (' + deps.length + ')</div>' +
+        tableOrEmpty(depsHtml, 'No known vulnerable dependencies 🎉') +
+        '<div class="section-title">📁 Sensitive Files (' + sensitive.length + ')</div>' +
+        tableOrEmpty(sensHtml, 'No sensitive files detected 🎉') +
+        '<div class="section-title">🌐 Hardcoded IPs / Internal URLs (' + ips.length + ')</div>' +
+        tableOrEmpty(ipsHtml, 'No hardcoded internal IPs / URLs 🎉') +
+        '<div class="section-title">🔑 Secrets & Sensitive Variables (' + (r.secrets_count||0) + ')</div>' +
+        tableOrEmpty(secretsHtml, 'No secrets found 🎉') +
+        '<div class="section-title">🛡️ Static Security Audit (' + ((r.static_audit||[]).length) + ')</div>' +
+        tableOrEmpty(auditHtml, 'No security issues found 🎉');
+      document.getElementById('results-body').classList.remove('hidden');
+    }
+
+    function esc(s) {
+      if (s === null || s === undefined) return '';
+      const d = document.createElement('div');
+      d.textContent = String(s);
+      return d.innerHTML;
+    }
+
+    function resetScan() {
+      selectedFile = null;
+      document.getElementById('results-card').classList.add('hidden');
+      document.getElementById('upload-card').classList.remove('hidden');
+      document.getElementById('file-info').classList.add('hidden');
+      document.getElementById('zip-input').value = '';
+      document.getElementById('scan-btn').disabled = false;
+      document.getElementById('scan-btn').textContent = 'Start Scan';
+      if (pollTimer) clearTimeout(pollTimer);
+    }
+
+    if (token) showApp();
+  </script>
+</body>
+</html>
